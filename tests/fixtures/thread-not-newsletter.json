@@ -1,0 +1,7 @@
+{
+  "id": "thread-transactional-005",
+  "subject": "Your invoice from Stripe",
+  "from": "Stripe <noreply@stripe.com>",
+  "date": "2026-04-26T03:14:00Z",
+  "bodyHtml": "<html><body><p>Your monthly invoice is ready. Total: $42.00.</p></body></html>"
+}

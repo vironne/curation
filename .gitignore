@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+.vitest-cache/
+coverage/
+
+# Generated digests — not versioned by default. Comment out the next line
+# if you want to keep an archive in-repo.
+runs/
+
+# Claude Code per-machine overrides
+.claude/settings.local.json
+

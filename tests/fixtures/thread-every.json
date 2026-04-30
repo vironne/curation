@@ -1,0 +1,8 @@
+{
+  "id": "thread-every-002",
+  "subject": "Every — How to ship an agentic product in 30 days",
+  "from": "Every <hello@every.to>",
+  "date": "2026-04-28T13:02:00Z",
+  "snippet": "A practical playbook for solo founders building agent-native tools.",
+  "bodyHtml": "<html><body><h1>Ship an agent in 30 days</h1><p>Anthropic released the <strong>Agent SDK 1.4</strong> on April 22 with new memory primitives. For solo founders, this changes the time-to-MVP from 3 months to 3 weeks.</p><p>The core insight: <em>agent-native UX is not chat</em>. It's a thin shell around a long-running task. We profiled 12 indie founders shipping in this window — average revenue at day 60 was $4.7k MRR.</p><p>Concrete idea: <a href=\"https://example.com/agent-tools\">domain-specific agent tools</a> for legal, accounting, and clinical-notes verticals. The market clarity: SMB lawyers paying $99/mo for a Claude wrapper that drafts motions.</p><blockquote>The next wave isn't AI products — it's AI shells around boring workflows.</blockquote><p><a href=\"https://every.to/articles/agent-30-days\">Full piece</a> | <a href=\"https://every.to/unsubscribe\">unsubscribe</a></p></body></html>"
+}

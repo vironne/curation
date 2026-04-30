@@ -18,6 +18,7 @@ import {
   emptyUsage,
   addUsage,
   estimateCostEur,
+  hasLlmProvider,
 } from '../shared/llm.js';
 import { markdownToHtml, wrapEmailHtml } from '../shared/render.js';
 import {
@@ -27,6 +28,7 @@ import {
   type DraftCreator,
 } from '../shared/deliver.js';
 import type {
+  DigestResult,
   ExtractedInsight,
   ParsedThread,
   PipelineOptions,
@@ -92,11 +94,15 @@ interface RawExtractedInsight {
   category: CurationCategory;
 }
 
-export async function runCuration(opts: PipelineOptions): Promise<void> {
+/**
+ * Run the Curation pipeline up to (but not including) email delivery.
+ * Returns the digest payload — used directly by the combined pipeline
+ * which packages two digests into one email.
+ */
+export async function produceCurationDigest(opts: PipelineOptions): Promise<DigestResult> {
   const t0 = Date.now();
   const today = opts.today ?? new Date();
   const window = computeWeekWindow(today);
-  const recipient = process.env.DIGEST_RECIPIENT ?? 'xvironneau@gmail.com';
 
   console.log(`[curation] week window: ${window.startISO} → ${window.endISO}`);
 
@@ -128,7 +134,7 @@ export async function runCuration(opts: PipelineOptions): Promise<void> {
   const allInsights: ExtractedInsight[] = [];
 
   for (const { thread, source } of tagged) {
-    if (opts.dryRun && !process.env.ANTHROPIC_API_KEY) {
+    if (!hasLlmProvider()) {
       // Offline smoke run: synthesize a stub insight from the subject so the
       // rest of the pipeline still flows. The real run requires a key.
       allInsights.push(stubInsightFromThread(thread, source));
@@ -172,7 +178,7 @@ export async function runCuration(opts: PipelineOptions): Promise<void> {
   const synthInput = buildSynthContext(allInsights, popular, window, stats);
 
   let markdown: string;
-  if (opts.dryRun && !process.env.ANTHROPIC_API_KEY) {
+  if (!hasLlmProvider()) {
     markdown = renderFallbackDigest(allInsights, popular, window, stats);
   } else {
     const res = await callMarkdown({
@@ -190,40 +196,42 @@ export async function runCuration(opts: PipelineOptions): Promise<void> {
   stats.costEur = estimateCostEur(usage);
   stats.latencyMs = Date.now() - t0;
 
-  // ------------------------------ 4. Deliver ------------------------------
   const html = wrapEmailHtml(markdownToHtml(markdown), `🧠 Curation Weekly — ${window.startFr}`);
   const subject = `🧠 Curation Weekly — Semaine du ${window.startFr} au ${window.endFr}`;
-  const date = window.endISO;
-  const outputDir = opts.outputDir ?? DEFAULT_OUTPUT_DIR;
 
+  return {
+    pipeline: PIPELINE,
+    date: window.endISO,
+    weekStart: window.startISO,
+    weekEnd: window.endISO,
+    markdown,
+    html,
+    subject,
+    stats,
+  };
+}
+
+/** Full Curation run: produce the digest and deliver it (file + Gmail draft). */
+export async function runCuration(opts: PipelineOptions): Promise<void> {
+  const recipient = process.env.DIGEST_RECIPIENT ?? 'xvironneau@gmail.com';
+  const outputDir = opts.outputDir ?? DEFAULT_OUTPUT_DIR;
+  const digest = await produceCurationDigest(opts);
   const draftCreator: DraftCreator | undefined = opts.dryRun ? undefined : new McpDraftCreator();
 
-  const result = await deliver(
-    {
-      pipeline: PIPELINE,
-      date,
-      weekStart: window.startISO,
-      weekEnd: window.endISO,
-      markdown,
-      html,
-      subject,
-      stats,
-    },
-    {
-      outputDir,
-      pipeline: PIPELINE,
-      date,
-      recipient,
-      dryRun: opts.dryRun,
-      draftCreator,
-    },
-  );
+  const result = await deliver(digest, {
+    outputDir,
+    pipeline: PIPELINE,
+    date: digest.date,
+    recipient,
+    dryRun: opts.dryRun,
+    draftCreator,
+  });
 
   await appendRunLog(outputDir, {
     timestamp: new Date().toISOString(),
     pipeline: PIPELINE,
-    date,
-    stats,
+    date: digest.date,
+    stats: digest.stats,
     draftId: result.draftId,
   });
 

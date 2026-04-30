@@ -18,6 +18,7 @@ import {
   emptyUsage,
   addUsage,
   estimateCostEur,
+  hasLlmProvider,
 } from '../shared/llm.js';
 import { markdownToHtml, wrapEmailHtml } from '../shared/render.js';
 import {
@@ -27,6 +28,7 @@ import {
   type DraftCreator,
 } from '../shared/deliver.js';
 import type {
+  DigestResult,
   ExtractedIdea,
   IdeaScoreBreakdown,
   ParsedThread,
@@ -95,11 +97,11 @@ interface RawExtractedIdea {
 
 const BUSINESS_QUERY = `newer_than:7d -from:me -in:trash -in:spam`;
 
-export async function runBusinessIdeas(opts: PipelineOptions): Promise<void> {
+/** Run the Business Ideas pipeline up to (but not including) delivery. */
+export async function produceBusinessIdeasDigest(opts: PipelineOptions): Promise<DigestResult> {
   const t0 = Date.now();
   const today = opts.today ?? new Date();
   const window = computeWeekWindow(today);
-  const recipient = process.env.DIGEST_RECIPIENT ?? 'xvironneau@gmail.com';
 
   console.log(`[business-ideas] week window: ${window.startISO} → ${window.endISO}`);
 
@@ -125,7 +127,7 @@ export async function runBusinessIdeas(opts: PipelineOptions): Promise<void> {
   const allIdeas: ExtractedIdea[] = [];
 
   for (const thread of parsed) {
-    if (opts.dryRun && !process.env.ANTHROPIC_API_KEY) {
+    if (!hasLlmProvider()) {
       const stub = stubIdeaFromThread(thread);
       if (stub) allIdeas.push(stub);
       continue;
@@ -155,7 +157,7 @@ export async function runBusinessIdeas(opts: PipelineOptions): Promise<void> {
   const synthInput = buildSynthContext(allIdeas, window, stats);
 
   let markdown: string;
-  if (opts.dryRun && !process.env.ANTHROPIC_API_KEY) {
+  if (!hasLlmProvider()) {
     markdown = renderFallbackDigest(allIdeas, window, stats);
   } else {
     const res = await callMarkdown({
@@ -173,40 +175,42 @@ export async function runBusinessIdeas(opts: PipelineOptions): Promise<void> {
   stats.costEur = estimateCostEur(usage);
   stats.latencyMs = Date.now() - t0;
 
-  // ------------------------------ 4. Deliver ------------------------------
   const html = wrapEmailHtml(markdownToHtml(markdown), `💡 Business Ideas Weekly`);
   const subject = `💡 Business Ideas Weekly — Semaine du ${window.startFr} au ${window.endFr}`;
-  const date = window.endISO;
-  const outputDir = opts.outputDir ?? DEFAULT_OUTPUT_DIR;
 
+  return {
+    pipeline: PIPELINE,
+    date: window.endISO,
+    weekStart: window.startISO,
+    weekEnd: window.endISO,
+    markdown,
+    html,
+    subject,
+    stats,
+  };
+}
+
+/** Full Business Ideas run: produce the digest and deliver it. */
+export async function runBusinessIdeas(opts: PipelineOptions): Promise<void> {
+  const recipient = process.env.DIGEST_RECIPIENT ?? 'xvironneau@gmail.com';
+  const outputDir = opts.outputDir ?? DEFAULT_OUTPUT_DIR;
+  const digest = await produceBusinessIdeasDigest(opts);
   const draftCreator: DraftCreator | undefined = opts.dryRun ? undefined : new McpDraftCreator();
 
-  const result = await deliver(
-    {
-      pipeline: PIPELINE,
-      date,
-      weekStart: window.startISO,
-      weekEnd: window.endISO,
-      markdown,
-      html,
-      subject,
-      stats,
-    },
-    {
-      outputDir,
-      pipeline: PIPELINE,
-      date,
-      recipient,
-      dryRun: opts.dryRun,
-      draftCreator,
-    },
-  );
+  const result = await deliver(digest, {
+    outputDir,
+    pipeline: PIPELINE,
+    date: digest.date,
+    recipient,
+    dryRun: opts.dryRun,
+    draftCreator,
+  });
 
   await appendRunLog(outputDir, {
     timestamp: new Date().toISOString(),
     pipeline: PIPELINE,
-    date,
-    stats,
+    date: digest.date,
+    stats: digest.stats,
     draftId: result.draftId,
   });
 

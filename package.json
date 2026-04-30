@@ -8,8 +8,10 @@
     "node": ">=20"
   },
   "scripts": {
+    "combined": "tsx src/combined/index.ts",
     "curation": "tsx src/curation/index.ts",
     "business-ideas": "tsx src/business-ideas/index.ts",
+    "dev:combined": "tsx src/combined/index.ts --dry-run --fixtures",
     "dev:curation": "tsx src/curation/index.ts --dry-run --fixtures",
     "dev:business-ideas": "tsx src/business-ideas/index.ts --dry-run --fixtures",
     "test": "vitest run",

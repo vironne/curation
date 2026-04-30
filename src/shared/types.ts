@@ -2,7 +2,7 @@
  * Shared types for both pipelines.
  */
 
-export type Pipeline = 'curation' | 'business-ideas';
+export type Pipeline = 'curation' | 'business-ideas' | 'combined';
 
 /** Raw thread as returned by the Gmail MCP search. */
 export interface RawThread {
